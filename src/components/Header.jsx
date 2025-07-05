@@ -11,9 +11,9 @@ const Header = () => {
           <Share className="w-5 h-5 text-gray-600" />
           <span>share</span>
         </div>
-        {/* <div className="flex justify-between items-center p-4 bg-white dark:bg-gray-900">
+        <div className="flex justify-between items-center p-4 bg-white dark:bg-gray-900">
           <Toggle />
-        </div> */}
+        </div>
         {/* <div className="ml-2">
           <button>Delete</button>
         </div> */}
