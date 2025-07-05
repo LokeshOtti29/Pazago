@@ -1,47 +1,35 @@
 import React, { useState } from "react";
 import Typebar from "./Typebar";
 import Messageresponse from "./Messageresponse";
+import { sendChatMessage } from "../utils/chatApi";
 
 const Messageinput = () => {
-  const apiUrl = import.meta.env.VITE_CHAT_API_URL;
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const handleSendMessage = async (newMessage) => {
-    const userMsg = {
+    const userMessage = {
       id: messages.length + 1,
       text: newMessage,
       isSender: true,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMessage]);
+
+    const botMessageId = messages.length + 2;
+    setMessages((prev) => [
+      ...prev,
+      { id: botMessageId, text: "...", isSender: false },
+    ]);
 
     try {
       setLoading(true);
 
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          Accept: "*/*",
-          "Content-Type": "application/json",
-          "x-mastra-dev-playground": "true",
-        },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: newMessage }],
-          runId: "weatherAgent",
-          maxRetries: 2,
-          maxSteps: 5,
-          temperature: 0.5,
-          topP: 1,
-          runtimeContext: {},
-          threadId: "TU3F2122044",
-          resourceId: "weatherAgent",
-        }),
-      });
+      const response = await sendChatMessage(newMessage);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
-      let botText = "";
+      let fullText = "";
       let done = false;
 
       while (!done) {
@@ -53,35 +41,36 @@ const Messageinput = () => {
 
         for (const line of lines) {
           if (line.startsWith("0:")) {
-            const content = line.slice(2).trim();
-            const cleaned = content
+            const raw = line.slice(2).trim();
+
+            const cleaned = raw
               .replace(/""/g, "")
-              .replace(/\\n/g, " ")
+              .replace(/\\n/g, "\n")
               .replace(/^[*"“”\s]+|[*"“”\s]+$/g, "")
               .replace(/\s+/g, " ")
               .trim();
-            botText += cleaned + " ";
+
+            if (cleaned) {
+              fullText += cleaned + " ";
+
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === botMessageId ? { ...msg, text: fullText } : msg
+                )
+              );
+            }
           }
         }
       }
-
-      const botMsg = {
-        id: messages.length + 2,
-        text: botText || "Bot: No response received.",
-        isSender: false,
-      };
-
-      setMessages((prev) => [...prev, botMsg]);
     } catch (error) {
-      console.error("Error sending message:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: messages.length + 2,
-          text: "Bot: Error fetching response.",
-          isSender: false,
-        },
-      ]);
+      console.error("Streaming failed:", error);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === botMessageId
+            ? { ...msg, text: "Bot: Something went wrong." }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -90,7 +79,13 @@ const Messageinput = () => {
   return (
     <div className="flex flex-col h-full items-center">
       <div className="flex-1 w-full overflow-y-auto">
-        <Messageresponse messages={messages} />
+        {messages.length === 0 ? (
+          <span className="font-semibold text-gray-500">
+            What's on your mind today?
+          </span>
+        ) : (
+          <Messageresponse messages={messages} />
+        )}
       </div>
       <div className="p-2 bg-white w-full">
         <div className="max-w-4xl mx-auto w-full">
